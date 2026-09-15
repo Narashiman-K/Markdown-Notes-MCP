@@ -49,9 +49,8 @@
   "user_config": {
     "allowed_folders": {
       "type": "directory",
-      "title": "Folders this extension may read",
-      "description": "Leave empty to allow any file on this computer.",
-      "multiple": true,
+      "title": "Folder this extension may read",
+      "description": "Restricts conversion to this folder and everything under it. Leave empty to allow any file on this computer.",
       "required": false
     },
     "gemini_api_key": {
