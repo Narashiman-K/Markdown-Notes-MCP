@@ -36,14 +36,34 @@ import { convertToMarkdown, ALL_FORMATS, extensionOf, needsOcr, needsTranscripti
  */
 installNodeRuntime()
 
-const VERSION = '0.1.0'
+const VERSION = '0.1.1'
 
 /**
- * Refuses to read outside the directories the host was told about, if it told
- * us any. MCP hosts vary in how much they sandbox a server, so the server does
- * not assume it is being sandboxed for it.
+ * Reads a setting, treating an unsubstituted template as absent.
+ *
+ * MCP hosts fill values like `${user_config.gemini_api_key}` from the
+ * extension's settings screen, but when a field is left empty the literal
+ * placeholder can arrive instead. Claude Desktop did exactly that: both API
+ * keys reported as "configured" while blank, and the folder restriction
+ * resolved `${user_config.allowed_folders}` against the working directory to
+ * produce `C:\Windows\system32\${user_config.allowed_folders}` — a root that
+ * matches nothing, silently refusing every file.
+ *
+ * Failing to a sensible default beats honouring a value that is plainly not
+ * one.
  */
-const ROOTS = (process.env.MARKDOWN_MCP_ROOTS ?? '')
+function setting(name: string): string | undefined {
+  const raw = process.env[name]?.trim()
+  if (!raw) return undefined
+  if (/^\$\{.*\}$/.test(raw)) return undefined
+  return raw
+}
+
+/**
+ * Folders the server will read from, if it was told any. MCP hosts vary in how
+ * much they sandbox a server, so it does not assume it is sandboxed for it.
+ */
+const ROOTS = (setting('MARKDOWN_MCP_ROOTS') ?? '')
   // `path.delimiter` rather than a hand-rolled regex: on Windows it is ';',
   // which cannot be confused with the colon in 'D:\...'. An earlier attempt
   // split on both and needed a lookahead to avoid mangling drive letters.

@@ -14,12 +14,25 @@
 const GEMINI = 'https://generativelanguage.googleapis.com/v1beta/models'
 const ASSEMBLY = 'https://api.assemblyai.com/v2'
 
+/**
+ * An unsubstituted `${user_config.x}` placeholder counts as unset.
+ *
+ * A host can pass the literal template through when its settings field is
+ * empty, and treating that as a key produces a baffling authentication error
+ * instead of the clear "no key configured" message the user needs.
+ */
+function key(name: string): string | undefined {
+  const raw = process.env[name]?.trim()
+  if (!raw || /^\$\{.*\}$/.test(raw)) return undefined
+  return raw
+}
+
 export function geminiKey(): string | undefined {
-  return process.env.GEMINI_API_KEY?.trim() || undefined
+  return key('GEMINI_API_KEY')
 }
 
 export function assemblyKey(): string | undefined {
-  return process.env.ASSEMBLYAI_API_KEY?.trim() || undefined
+  return key('ASSEMBLYAI_API_KEY')
 }
 
 function toBase64(bytes: Uint8Array): string {

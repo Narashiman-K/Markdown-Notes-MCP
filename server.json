@@ -6,14 +6,14 @@
     "url": "https://github.com/Narashiman-K/Markdown-Notes-MCP",
     "source": "github"
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "websiteUrl": "https://github.com/Narashiman-K/Markdown-Notes-MCP#readme",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "suprasuta-markdown-mcp",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "transport": {
         "type": "stdio"
       },

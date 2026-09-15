@@ -3,7 +3,7 @@
   "manifest_version": "0.3",
   "name": "suprasuta-markdown-notes",
   "display_name": "Suprasūtā Markdown Notes",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Convert PDF, Word, Excel, PowerPoint, EPUB and images to Markdown, on your own machine.",
   "long_description": "Claude can read plain text, and sometimes PDFs. It cannot read EPUB, OpenDocument or PowerPoint, and everything it does read has to be uploaded first.\n\nThis converts documents on your own computer and hands Claude clean Markdown — tables kept as tables, headings preserved, code properly fenced. Nothing is uploaded, there is no account, and no telemetry of any kind.\n\nThe converted .md file is saved beside the original automatically, so you keep a copy. Long documents come back as a short preview rather than filling the conversation, which keeps the cost down.\n\nTwo optional features do use the internet, and only if you supply your own API key: cloud image recognition through Google Gemini, which can also describe charts, and audio transcription through AssemblyAI. Text recognition on images otherwise runs entirely offline, with the engine bundled in this extension.",
   "author": {
@@ -36,7 +36,9 @@
     "entry_point": "dist/server.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/dist/server.js"],
+      "args": [
+        "${__dirname}/dist/server.js"
+      ],
       "env": {
         "MARKDOWN_MCP_ROOTS": "${user_config.allowed_folders}",
         "GEMINI_API_KEY": "${user_config.gemini_api_key}",
@@ -48,21 +50,21 @@
     "allowed_folders": {
       "type": "directory",
       "title": "Folders this extension may read",
-      "description": "Restricts conversion to these folders. Leave empty to allow any file on this computer.",
+      "description": "Leave empty to allow any file on this computer.",
       "multiple": true,
       "required": false
     },
     "gemini_api_key": {
       "type": "string",
       "title": "Google Gemini API key (optional)",
-      "description": "Enables cloud image recognition, which is more accurate than the offline engine and can describe charts and diagrams. Images are sent to Google when you choose cloud mode. Leave empty to keep all recognition offline.",
+      "description": "Optional. More accurate image recognition that can also describe charts. Images go to Google only in cloud mode.",
       "sensitive": true,
       "required": false
     },
     "assemblyai_api_key": {
       "type": "string",
       "title": "AssemblyAI API key (optional)",
-      "description": "Enables audio transcription. This is the only feature that cannot run on your machine — the audio file is uploaded to AssemblyAI. Leave empty to disable it.",
+      "description": "Optional. Enables audio transcription. The audio file is uploaded to AssemblyAI.",
       "sensitive": true,
       "required": false
     }
@@ -86,7 +88,11 @@
     }
   ],
   "compatibility": {
-    "platforms": ["win32", "darwin", "linux"],
+    "platforms": [
+      "win32",
+      "darwin",
+      "linux"
+    ],
     "runtimes": {
       "node": ">=20"
     }

@@ -1,6 +1,6 @@
 {
   "name": "suprasuta-markdown-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Convert PDF, Word, Excel, PowerPoint, OpenDocument, EPUB, images and audio to clean Markdown, locally. An MCP server for Claude, VS Code and Antigravity.",
   "author": {
     "name": "Narashiman Krishnamurthy",
