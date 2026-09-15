@@ -36,7 +36,7 @@ import { convertToMarkdown, ALL_FORMATS, extensionOf, needsOcr, needsTranscripti
  */
 installNodeRuntime()
 
-const VERSION = '0.1.1'
+const VERSION = '0.1.2'
 
 /**
  * Reads a setting, treating an unsubstituted template as absent.
@@ -142,6 +142,20 @@ async function writeMarkdown(target: string, markdown: string, overwrite: boolea
   return out
 }
 
+/**
+ * Names the Markdown output after the whole original filename.
+ *
+ * `report.pdf` becomes `report.pdf.md`, not `report.md`. Stripping the
+ * extension looked tidier until a folder held report.pdf, report.docx and
+ * report.epub: all three wanted the same output name, and the numbering that
+ * resolved the clash — report.md, report-2.md, report-3.md — gave no clue
+ * which came from which. Keeping the original name in full makes the
+ * provenance obvious and the clash impossible.
+ */
+function markdownNameFor(sourcePath: string): string {
+  return `${basename(sourcePath)}.md`
+}
+
 function text(s: string): CallToolResult {
   return { content: [{ type: 'text', text: s }] }
 }
@@ -166,8 +180,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         'transcribed. Conversion happens locally and the file is not uploaded, except for ' +
         'the image and audio cases noted in ocr_mode. Prefer this over reading a binary ' +
         'file directly.\n\n' +
-        'The Markdown is SAVED AUTOMATICALLY as a .md file beside the original, so the ' +
-        'user does not need to ask. Short documents are also returned in full; long ones ' +
+        'The Markdown is SAVED AUTOMATICALLY beside the original, keeping the full ' +
+        'original filename plus .md — report.pdf becomes report.pdf.md — so it is always ' +
+        'clear which file it came from. The user does not need to ask for this. Short documents are also returned in full; long ones ' +
         'come back as a preview plus the saved path, to avoid filling the conversation ' +
         'with tens of thousands of words. If you need more of a long document than the ' +
         'preview shows, call this again with return_content "full".',
@@ -323,7 +338,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (args.save !== false) {
         const target = args.save_to
           ? checkPath(String(args.save_to))
-          : join(dirname(path), basename(path).replace(/\.[^.]+$/, '') + '.md')
+          : join(dirname(path), markdownNameFor(path))
         savedTo = await writeMarkdown(target, markdown, args.overwrite === true)
       }
 
@@ -360,7 +375,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === 'save_summary') {
       const source = checkPath(String(args.source_path))
-      const stem = source.replace(/\.[^.]+$/, '')
+      /*
+       * `report.pdf.md` and `report.pdf` both give `report.pdf.summary.md`, so
+       * it does not matter whether the caller passes the original document or
+       * the converted one — the summary lands in the same place either way.
+       */
+      const stem = source.replace(/\.md$/i, '')
       const heading = String(args.title ?? `Summary of ${basename(source)}`)
 
       /*
@@ -400,7 +420,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             lines.push(`- FAILED  ${basename(p)} — ${r.error}`)
             continue
           }
-          const target = resolve(outDir, basename(p).replace(/\.[^.]+$/, '') + '.md')
+          const target = resolve(outDir, markdownNameFor(p))
           const out = await writeMarkdown(target, r.markdown, args.overwrite === true)
           lines.push(`- ok      ${basename(p)} → ${out} (${r.markdown.length} characters)`)
         } catch (err) {

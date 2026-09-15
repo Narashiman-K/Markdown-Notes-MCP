@@ -3,7 +3,7 @@
   "manifest_version": "0.3",
   "name": "suprasuta-markdown-notes",
   "display_name": "Suprasūtā Markdown Notes",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Convert PDF, Word, Excel, PowerPoint, EPUB and images to Markdown, on your own machine.",
   "long_description": "Claude can read plain text, and sometimes PDFs. It cannot read EPUB, OpenDocument or PowerPoint, and everything it does read has to be uploaded first.\n\nThis converts documents on your own computer and hands Claude clean Markdown — tables kept as tables, headings preserved, code properly fenced. Nothing is uploaded, there is no account, and no telemetry of any kind.\n\nThe converted .md file is saved beside the original automatically, so you keep a copy. Long documents come back as a short preview rather than filling the conversation, which keeps the cost down.\n\nTwo optional features do use the internet, and only if you supply your own API key: cloud image recognition through Google Gemini, which can also describe charts, and audio transcription through AssemblyAI. Text recognition on images otherwise runs entirely offline, with the engine bundled in this extension.",
   "author": {
@@ -71,7 +71,7 @@
   "tools": [
     {
       "name": "convert_to_markdown",
-      "description": "Convert one document to Markdown and save it beside the original."
+      "description": "Convert one document to Markdown, saved beside the original as <original name>.md."
     },
     {
       "name": "convert_folder_to_markdown",
