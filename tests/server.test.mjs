@@ -108,3 +108,22 @@ test('an unsubstituted key placeholder reports as not configured', async () => {
   assert.match(reply.result.content[0].text, /Cloud OCR \(Gemini\): not configured/)
   assert.match(reply.result.content[0].text, /AssemblyAI\): not configured/)
 })
+
+test('every tool declares a title and the hints the directory requires', async () => {
+  // A Connectors Directory submission is rejected if any tool lacks a title or
+  // the applicable readOnlyHint/destructiveHint, and the portal groups
+  // unannotated tools separately for a reviewer to query.
+  const [reply] = (
+    await callServer([{ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }])
+  ).filter((r) => r.id === 2)
+
+  for (const tool of reply.result.tools) {
+    const a = tool.annotations
+    assert.ok(a, `${tool.name} has no annotations`)
+    assert.ok(a.title, `${tool.name} has no title`)
+    assert.equal(typeof a.readOnlyHint, 'boolean', `${tool.name} has no readOnlyHint`)
+    if (a.readOnlyHint === false) {
+      assert.equal(typeof a.destructiveHint, 'boolean', `${tool.name} writes but has no destructiveHint`)
+    }
+  }
+})

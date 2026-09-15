@@ -36,7 +36,7 @@ import { convertToMarkdown, ALL_FORMATS, extensionOf, needsOcr, needsTranscripti
  */
 installNodeRuntime()
 
-const VERSION = '0.1.3'
+const VERSION = '0.1.4'
 
 /**
  * Reads a setting, treating an unsubstituted template as absent.
@@ -227,6 +227,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           }
         },
         required: ['path']
+      },
+      annotations: {
+        title: 'Convert a document to Markdown',
+        /*
+         * Not read-only: it writes a .md beside the original. Not destructive
+         * either — the default never replaces an existing file, and overwriting
+         * requires the caller to pass `overwrite` explicitly.
+         *
+         * openWorldHint is true because two optional paths reach the internet:
+         * cloud OCR and audio transcription. Both are dormant without a key,
+         * but an annotation cannot be conditional, and claiming a closed world
+         * would be the dishonest way round.
+         */
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
       }
     },
     {
@@ -248,6 +265,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           }
         },
         required: ['paths', 'output_directory']
+      },
+      annotations: {
+        title: 'Convert several documents to Markdown',
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
       }
     },
     {
@@ -277,6 +301,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           }
         },
         required: ['source_path', 'summary']
+      },
+      annotations: {
+        title: 'Save a summary beside a document',
+        /*
+         * destructiveHint is true here, unlike the converters: a summary is
+         * written with overwrite enabled, so re-summarising replaces the
+         * previous one rather than accumulating numbered copies.
+         */
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false
       }
     },
     {
@@ -284,7 +320,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       description:
         'List the file extensions this server can convert, and report which optional ' +
         'cloud features are configured. Call this if a conversion fails as unsupported.',
-      inputSchema: { type: 'object', properties: {} }
+      inputSchema: { type: 'object', properties: {} },
+      annotations: {
+        title: 'List supported formats',
+        readOnlyHint: true,
+        openWorldHint: false
+      }
     }
   ]
 }))

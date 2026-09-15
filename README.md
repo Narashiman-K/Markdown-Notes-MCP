@@ -103,10 +103,6 @@ Antigravity looks in `~/.gemini/config/mcp_config.json`, or
 To run a checkout rather than the published package, replace `command` and
 `args` with `node` and the absolute path to `dist/server.js`.
 
-Antigravity looks in `~/.gemini/config/mcp_config.json`, or `.agents/mcp_config.json`
-inside a workspace. Note that it requires `serverUrl` rather than `url` for
-remote servers; this one is local, so `command` and `args` apply.
-
 ## Optional cloud features
 
 Both are dormant until a key is present. Everything else works without either.
@@ -118,12 +114,17 @@ Both are dormant until a key is present. Everything else works without either.
 
 Keys are read from the environment, never written to disk and never logged.
 
+**Settings are read once, at start-up.** An MCP server is a long-running
+process, so a key or folder saved while it is running does not reach it until
+the host restarts. If a key you have just entered reports as not configured,
+restart the host before looking for anything more complicated.
+
 ## Development
 
 ```bash
 npm install          # .npmrc sets include=dev — do not delete it
 npm run build        # stages the OCR engine, then bundles with esbuild
-npm test             # 15 tests against the built bundle
+npm test             # 19 tests against the built bundle
 npm run smoke        # converts every file in samples/ and reports
 npm run typecheck
 ```
@@ -167,6 +168,20 @@ This package is the canonical copy: it is the only one with the runtime hook
 that lets identical files run in both environments, so fixes start here and
 flow outward. `sync:check` reports and exits zero — drift is information, not a
 build failure.
+
+## Privacy Policy
+
+This software collects nothing. No account, no analytics, no telemetry, and no
+server of its own — document conversion happens entirely on your machine.
+
+Two optional features send data to a third party, and only when you supply your
+own API key: cloud image recognition sends the image to Google, and audio
+transcription sends the audio to AssemblyAI. With no keys configured, the
+software makes no network connections at all. API keys are read from the
+environment, never written to disk and never logged.
+
+Full policy, covering collection, storage, retention, third-party sharing and
+contact details: **[PRIVACY.md](PRIVACY.md)**.
 
 ## Related
 

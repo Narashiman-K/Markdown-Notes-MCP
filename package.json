@@ -1,7 +1,7 @@
 {
   "name": "suprasuta-markdown-mcp",
   "mcpName": "io.github.Narashiman-K/markdown-notes-mcp",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Convert PDF, Word, Excel, PowerPoint, OpenDocument, EPUB, images and audio to clean Markdown, locally. An MCP server for Claude, VS Code and Antigravity.",
   "author": {
     "name": "Narashiman Krishnamurthy",
@@ -17,6 +17,7 @@
     "dist",
     "vendor/tesseract/*.wasm.js",
     "vendor/tesseract/*.gz",
+    "PRIVACY.md",
     "LICENSE.md",
     "README.md"
   ],
