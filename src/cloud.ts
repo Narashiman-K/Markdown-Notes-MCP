@@ -35,7 +35,13 @@ export async function geminiOcr(bytes: Uint8Array, mimeType: string): Promise<st
   const key = geminiKey()
   if (!key) throw new Error('GEMINI_API_KEY is not set.')
 
-  const model = process.env.GEMINI_OCR_MODEL?.trim() || 'gemini-2.0-flash'
+  /*
+   * Overridable, because Google retires model names on a schedule that has
+   * nothing to do with this package's release cadence — gemini-2.0-flash was
+   * already returning 404 by September 2026. GEMINI_OCR_MODEL lets a user move
+   * on without waiting for an update here.
+   */
+  const model = process.env.GEMINI_OCR_MODEL?.trim() || 'gemini-3.6-flash'
   const prompt =
     'Transcribe this image as clean Markdown. Preserve headings, lists and ' +
     'tables. Describe charts or diagrams briefly in italics. Output only the ' +
