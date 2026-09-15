@@ -38,10 +38,11 @@ export async function geminiOcr(bytes: Uint8Array, mimeType: string): Promise<st
   /*
    * Overridable, because Google retires model names on a schedule that has
    * nothing to do with this package's release cadence — gemini-2.0-flash was
-   * already returning 404 by September 2026. GEMINI_OCR_MODEL lets a user move
-   * on without waiting for an update here.
+   * already returning 404 by September 2026. The default is therefore the
+   * `-latest` alias, which always resolves to a current model, and
+   * GEMINI_OCR_MODEL pins a specific one when that matters.
    */
-  const model = process.env.GEMINI_OCR_MODEL?.trim() || 'gemini-3.6-flash'
+  const model = process.env.GEMINI_OCR_MODEL?.trim() || 'gemini-flash-latest'
   const prompt =
     'Transcribe this image as clean Markdown. Preserve headings, lists and ' +
     'tables. Describe charts or diagrams briefly in italics. Output only the ' +

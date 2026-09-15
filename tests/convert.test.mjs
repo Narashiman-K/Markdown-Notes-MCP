@@ -46,14 +46,14 @@ test('offline OCR runs locally and reads the image', async () => {
   // `document` made tesseract take the browser path, the staged engine was
   // looked for at the wrong depth once bundled, and its Node build cannot
   // decode a Blob. Each produced a different error a long way from the cause.
-  const r = await convert('sample.bmp', { ocrMode: 'offline' })
+  const r = await convert('ocr-sample.bmp', { ocrMode: 'offline' })
   assert.equal(r.ok, true, r.ok ? '' : `${r.code}: ${r.error}`)
   assert.ok(r.markdown.length > 100, 'suspiciously little text from the image')
   assert.equal(r.meta?.engine, 'tesseract')
 })
 
 test('cloud OCR refuses clearly rather than failing obscurely', async () => {
-  const r = await convert('sample.bmp', { ocrMode: 'cloud' })
+  const r = await convert('ocr-sample.bmp', { ocrMode: 'cloud' })
   assert.equal(r.ok, false)
   assert.equal(r.code, 'NO_CLOUD_OCR')
   assert.match(r.error, /key/i)
