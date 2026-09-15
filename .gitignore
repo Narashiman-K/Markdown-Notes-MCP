@@ -1,0 +1,10 @@
+node_modules/
+dist/
+vendor/
+.env
+samples/*.md
+!samples/demo.md
+
+# tesseract.js decompresses its language data at runtime; it is derived
+# from vendor/ and must never be committed.
+*.traineddata

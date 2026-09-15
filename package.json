@@ -1,0 +1,70 @@
+{
+  "name": "suprasuta-markdown-mcp",
+  "version": "0.1.0",
+  "description": "Convert PDF, Word, Excel, PowerPoint, OpenDocument, EPUB, images and audio to clean Markdown, locally. An MCP server for Claude, VS Code and Antigravity.",
+  "author": {
+    "name": "Narashiman Krishnamurthy",
+    "url": "https://www.linkedin.com/in/narashimank/"
+  },
+  "license": "SEE LICENSE IN LICENSE.md",
+  "type": "module",
+  "bin": {
+    "suprasuta-markdown-mcp": "dist/server.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "vendor",
+    "LICENSE.md",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node dist/server.js",
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "typecheck": "tsc --noEmit",
+    "sync:check": "node scripts/sync-converters.mjs --check",
+    "sync:pull": "node scripts/sync-converters.mjs --pull",
+    "prebuild": "node scripts/stage-tesseract.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "pretest": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "jsdom": "^26.0.0",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.12.1",
+    "pdfjs-dist": "^4.10.38",
+    "tesseract.js": "^7.0.0",
+    "tesseract.js-core": "^6.1.2",
+    "@tesseract.js-data/eng": "^1.0.0",
+    "turndown": "^7.2.4",
+    "turndown-plugin-gfm": "^1.0.2",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^24.0.0",
+    "@types/turndown": "^5.0.5",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.2"
+  },
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "markdown",
+    "convert pdf to markdown",
+    "docx to markdown",
+    "pdf to markdown",
+    "excel to markdown",
+    "powerpoint to markdown",
+    "epub to markdown",
+    "ocr",
+    "document conversion",
+    "claude",
+    "antigravity"
+  ]
+}
