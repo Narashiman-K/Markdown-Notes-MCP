@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.github.Narashiman-K/markdown-notes-mcp",
-  "description": "Convert PDF, Word, Excel, PowerPoint, EPUB and images to Markdown on your own machine. No upload, no account, no telemetry.",
+  "description": "Convert PDF, Word, Excel, PowerPoint, EPUB and images to Markdown locally, with no upload.",
   "repository": {
     "url": "https://github.com/Narashiman-K/Markdown-Notes-MCP",
     "source": "github"
