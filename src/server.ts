@@ -36,7 +36,7 @@ import { convertToMarkdown, ALL_FORMATS, extensionOf, needsOcr, needsTranscripti
  */
 installNodeRuntime()
 
-const VERSION = '0.1.2'
+const VERSION = '0.1.3'
 
 /**
  * Reads a setting, treating an unsubstituted template as absent.
