@@ -50,7 +50,14 @@ returned in full, since they are cheap either way. Ask for
 
 ## Installing
 
-### Claude Desktop
+### Claude Desktop — the easy way
+
+Download the `.mcpb` file from
+[Releases](https://github.com/Narashiman-K/Markdown-Notes-MCP/releases) and
+double-click it. Claude Desktop installs it and asks which folders it may read,
+and optionally for API keys. No Node, no terminal, no JSON.
+
+### Claude Desktop — from source
 
 ```bash
 npm install
@@ -66,21 +73,35 @@ read. Without it, any path the assistant asks for is allowed.
 
 To remove it again: `node scripts/install-claude-desktop.mjs --remove`
 
-### VS Code and Antigravity
+### From npm — any MCP host
 
-Both read a standard MCP configuration. Point them at `dist/server.js`:
+```bash
+npm install -g suprasuta-markdown-mcp
+```
+
+Then point your host at the `suprasuta-markdown-mcp` command, or run it without
+installing:
 
 ```json
 {
   "servers": {
     "suprasuta-markdown": {
-      "command": "node",
-      "args": ["<absolute path>/dist/server.js"],
+      "command": "npx",
+      "args": ["-y", "suprasuta-markdown-mcp"],
       "env": { "MARKDOWN_MCP_ROOTS": "D:\\your\\documents" }
     }
   }
 }
 ```
+
+### VS Code and Antigravity
+
+Both read a standard MCP configuration — the block above works as-is.
+Antigravity looks in `~/.gemini/config/mcp_config.json`, or
+`.agents/mcp_config.json` inside a workspace.
+
+To run a checkout rather than the published package, replace `command` and
+`args` with `node` and the absolute path to `dist/server.js`.
 
 Antigravity looks in `~/.gemini/config/mcp_config.json`, or `.agents/mcp_config.json`
 inside a workspace. Note that it requires `serverUrl` rather than `url` for

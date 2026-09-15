@@ -8,3 +8,4 @@ samples/*.md
 # tesseract.js decompresses its language data at runtime; it is derived
 # from vendor/ and must never be committed.
 *.traineddata
+build/

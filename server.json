@@ -1,0 +1,42 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.Narashiman-K/markdown-notes-mcp",
+  "description": "Convert PDF, Word, Excel, PowerPoint, EPUB and images to Markdown on your own machine. No upload, no account, no telemetry.",
+  "repository": {
+    "url": "https://github.com/Narashiman-K/Markdown-Notes-MCP",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "websiteUrl": "https://github.com/Narashiman-K/Markdown-Notes-MCP#readme",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "suprasuta-markdown-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MARKDOWN_MCP_ROOTS",
+          "description": "Semicolon-separated folders the server may read. Omit to allow any path.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "GEMINI_API_KEY",
+          "description": "Optional. Enables cloud image recognition, which can also describe charts. Images are sent to Google only when cloud mode is chosen.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "ASSEMBLYAI_API_KEY",
+          "description": "Optional. Enables audio transcription, the only feature that cannot run locally.",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

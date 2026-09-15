@@ -23,12 +23,14 @@ const outDir = join(root, 'vendor', 'tesseract')
 const packageDir = (name) => dirname(require.resolve(`${name}/package.json`))
 
 /*
- * Node has no SIMD-detection concerns in practice, but tesseract.js still picks
- * a core at runtime, so both LSTM variants are staged. Unlike the browser build
- * — where 3.9 MB of download mattered and the non-SIMD core was dropped — an
- * npm package is fetched once, so correctness wins over size here.
+ * Only the SIMD LSTM core, at roughly 4 MB.
+ *
+ * Node has supported WebAssembly SIMD since v16 and this package requires v20,
+ * so the non-SIMD core would double the download for a configuration that
+ * cannot occur. If tesseract ever fails to load it, ocr.ts falls back to the
+ * library's CDN default rather than breaking.
  */
-const CORES = ['tesseract-core-lstm.wasm.js', 'tesseract-core-simd-lstm.wasm.js']
+const CORES = ['tesseract-core-simd-lstm.wasm.js']
 
 const copied = []
 
