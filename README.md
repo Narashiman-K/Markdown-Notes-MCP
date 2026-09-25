@@ -189,4 +189,4 @@ contact details: **[PRIVACY.md](PRIVACY.md)**.
 | --- | --- |
 | Windows app | [Microsoft Store](https://apps.microsoft.com/detail/9N1S7QP2WNLX) · [source](https://github.com/Narashiman-K/Markdown-Notes-windows) |
 | Web app | [markdown-notes-psi.vercel.app](https://markdown-notes-psi.vercel.app) · [source](https://github.com/Narashiman-K/Markdown-Notes-web) |
-| Android | [source](https://github.com/Narashiman-K/Markdown-Notes-Android) |
+| Android | Install the web app from Chrome · [older native build](https://github.com/Narashiman-K/Markdown-Notes-Android), no longer maintained |

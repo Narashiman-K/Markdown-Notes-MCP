@@ -34,9 +34,23 @@ const builds = resolve(root, '..')
  */
 const PROJECTS = {
   windows: join(builds, 'MarkNote', 'src', 'renderer', 'src', 'lib', 'convert'),
-  web: join(builds, 'MarkNote-Web', 'src', 'lib', 'convert'),
-  android: join(builds, 'MarkNote-Android', 'src', 'lib', 'convert')
+  web: join(builds, 'MarkNote-Web', 'src', 'lib', 'convert')
 }
+
+/*
+ * MarkNote-Android was dropped from the family in September 2026.
+ *
+ * Google Play requires fourteen testers over fourteen days before a personal
+ * developer account may publish, which is not achievable for a single author,
+ * and sideloading is being progressively restricted. The repository and its
+ * code are left intact — this only stops pretending the copy is maintained,
+ * because a sync target nobody updates reports drift on every run until the
+ * report is ignored entirely, which is worse than not checking.
+ *
+ * The VS Code extension keeps its own copy and its own check
+ * (scripts/verify-parsers.mjs there), because it compares converter *output*
+ * rather than file hashes — it has a Node runtime shim the apps do not.
+ */
 
 /**
  * Files that are expected to differ, with the reason.
