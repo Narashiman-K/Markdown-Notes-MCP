@@ -45,6 +45,30 @@ const urlImports = {
   }
 }
 
+/**
+ * The one dependency that is bundled rather than left external: SheetJS.
+ *
+ * SheetJS stopped publishing to the npm registry at 0.18.5, which carries a
+ * prototype-pollution CVE and a ReDoS. Patched releases come only from the
+ * vendor's CDN, and the tarball is kept in `vendor/` as they recommend. That
+ * is fine while building, but a published package cannot depend on a `file:`
+ * path — anyone installing it would get an unresolvable dependency. So the
+ * library goes into the bundle instead, and is a devDependency only: users get
+ * exactly the bytes these tests ran against, with nothing fetched from the
+ * CDN at install time.
+ *
+ * Resolved to the ESM build explicitly. The CommonJS entry `require`s `fs` and
+ * `stream` lazily, which an ESM bundle cannot express, and the converters only
+ * use `read` and `utils`, which need neither.
+ */
+const bundleSheetJs = {
+  name: 'bundle-sheetjs',
+  setup(b) {
+    const entry = require.resolve('xlsx').replace(/xlsx\.js$/, 'xlsx.mjs')
+    b.onResolve({ filter: /^xlsx$/ }, () => ({ path: entry }))
+  }
+}
+
 await build({
   entryPoints: ['src/server.ts', 'src/index.ts'],
   outdir: 'dist',
@@ -69,7 +93,7 @@ await build({
    * than at build time — plugin resolution runs before the external check,
    * which is exactly why this works.
    */
-  plugins: [urlImports],
+  plugins: [urlImports, bundleSheetJs],
   logLevel: 'info'
 })
 

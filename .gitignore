@@ -1,6 +1,13 @@
 node_modules/
 dist/
-vendor/
+# vendor/ holds the staged Tesseract engine, which is copied out of
+# node_modules on every build and must not be committed. The one exception is
+# the SheetJS tarball: patched releases exist only on the vendor's CDN, and
+# SheetJS recommend committing it so builds never depend on that CDN.
+# `vendor/*` rather than `vendor/`, because git cannot re-include a file
+# inside a directory that is itself excluded.
+vendor/*
+!vendor/xlsx-*.tgz
 .env
 samples/*.md
 !samples/demo.md
