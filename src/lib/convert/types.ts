@@ -33,6 +33,11 @@ export interface ConvertOptions {
    * adds roughly 100–250 KB to the document.
    */
   keepPageImages?: boolean
+  /**
+   * How long a spreadsheet may take to read before it is stopped and reported
+   * as damaged. 30 seconds when absent; the tests use less.
+   */
+  timeLimitMs?: number
   cloudOcr?: CloudOcr
   /** Injected for audio, which has no offline path. */
   transcribe?: (bytes: Uint8Array) => Promise<string>

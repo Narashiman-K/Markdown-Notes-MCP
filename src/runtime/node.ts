@@ -22,7 +22,9 @@ import { dirname, join, resolve } from 'node:path'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { JSDOM } from 'jsdom'
-import { setConvertRuntime } from '../lib/convert/runtime'
+import { Worker } from 'node:worker_threads'
+import { setConvertRuntime, sheetTimedOut } from '../lib/convert/runtime'
+import type { ConvertResult } from '../lib/convert/types'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -56,6 +58,39 @@ function tesseractDirectory(): string {
     // which fetch from a CDN. ocr.ts already handles that path.
     return ''
   }
+}
+
+/**
+ * Reads a spreadsheet on a worker thread, stopped after `limitMs`.
+ *
+ * SheetJS reads synchronously and some damaged files make it loop forever. On
+ * the server's own thread that froze every tool call until the host gave up
+ * on the process. A worker thread can be terminated.
+ *
+ * dist/sheet-worker.js sits beside the bundle (scripts/build.mjs). When it is
+ * missing, as in a source checkout that has not been built, this resolves to
+ * null and the caller reads the file itself, as before.
+ */
+function isolateSheet(bytes: Uint8Array, fileName: string, limitMs: number): Promise<ConvertResult | null> {
+  const file = join(here, 'sheet-worker.js')
+  if (!existsSync(file)) return Promise.resolve(null)
+  return new Promise((resolve) => {
+    let settled = false
+    const worker = new Worker(file, { workerData: { bytes, fileName } })
+    const finish = (result: ConvertResult | null): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      void worker.terminate()
+      resolve(result)
+    }
+    const timer = setTimeout(() => finish(sheetTimedOut(limitMs)), limitMs)
+    worker.once('message', (result: ConvertResult) =>
+      finish(result.ok ? { ...result, meta: { ...result.meta, isolated: true } } : result)
+    )
+    // The thread failed to start, which is not the file's fault.
+    worker.once('error', () => finish(null))
+  })
 }
 
 let installed = false
@@ -101,6 +136,7 @@ export function installNodeRuntime(): void {
     // A Blob reaches tesseract's Node build as a truncated file; a Buffer is
     // what it actually decodes.
     ocrImageInput: (bytes) => Buffer.from(bytes),
+    isolateSheet,
     /*
      * No workerPath on purpose. tesseract.js has a Node worker of its own and
      * will use it when not told otherwise; the staged worker.min.js is the

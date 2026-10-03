@@ -10,7 +10,8 @@ import { extensionOf, FORMAT_GROUPS } from './types'
 import { normaliseMarkdown } from './normalise'
 import { convertPdf } from './pdf'
 import { canOcrPdf, ocrScannedPdf } from './pdfOcr'
-import { convertDocx, convertSheet, convertPptx, convertOdt, convertEpub } from './office'
+import { convertDocx, convertPptx, convertOdt, convertEpub } from './office'
+import { convertSheetSafely } from './sheet'
 import { convertText } from './text'
 import { convertImage } from './ocr'
 import { convertAudio } from './audio'
@@ -50,7 +51,7 @@ export async function convertToMarkdown(
       result = await convertDocx(bytes, fileName)
     } else if (['xlsx', 'xlsm', 'xls', 'ods'].includes(ext)) {
       onProgress?.('Reading the spreadsheet…', 0.3)
-      result = convertSheet(bytes, fileName)
+      result = await convertSheetSafely(bytes, fileName, options.timeLimitMs)
     } else if (ext === 'pptx') {
       onProgress?.('Reading the presentation…', 0.3)
       result = await convertPptx(bytes, fileName)

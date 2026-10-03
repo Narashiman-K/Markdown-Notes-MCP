@@ -70,7 +70,13 @@ const bundleSheetJs = {
 }
 
 await build({
-  entryPoints: ['src/server.ts', 'src/index.ts'],
+  // Named, so all three land flat in dist/: the worker thread that reads
+  // spreadsheets (src/runtime/sheet-worker.ts) is looked up beside the bundle.
+  entryPoints: {
+    server: 'src/server.ts',
+    index: 'src/index.ts',
+    'sheet-worker': 'src/runtime/sheet-worker.ts'
+  },
   outdir: 'dist',
   bundle: true,
   platform: 'node',

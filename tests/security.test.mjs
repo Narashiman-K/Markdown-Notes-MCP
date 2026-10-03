@@ -116,24 +116,27 @@ test('a spreadsheet cut off part-way fails at once instead of hanging', async (t
   }
 })
 
-test(
-  'a fragment carrying a genuine end record does not hang the host',
-  {
-    skip:
-      'KNOWN GAP — hangs today. SheetJS loops forever on e.g. a 10-byte prefix of a real ' +
-      'workbook followed by its genuine end-of-central-directory record, and the truncation ' +
-      'guard cannot see it because the record is present. Interrupting a synchronous loop ' +
-      'needs the parse moved into a worker with a time limit. Remove this skip when that lands.'
-  },
-  async () => {
-    const tail = endRecord(realWorkbook)
-    const crafted = new Uint8Array(10 + tail.length)
-    crafted.set(realWorkbook.slice(0, 10))
-    crafted.set(tail, 10)
-    const r = await within(5000, convertToMarkdown(crafted, 'crafted.xlsx'))
-    assert.equal(r.ok, false)
-  }
-)
+test('a fragment carrying a genuine end record is stopped at the time limit', async () => {
+  // SheetJS loops forever on a 10-byte prefix of a real workbook followed by
+  // its genuine end-of-central-directory record; the truncation guard cannot
+  // see it, because the record is there. It is read on a worker thread that
+  // is stopped at the limit (Phase 1b), so the server carries on.
+  const tail = endRecord(realWorkbook)
+  const crafted = new Uint8Array(10 + tail.length)
+  crafted.set(realWorkbook.slice(0, 10))
+  crafted.set(tail, 10)
+  const started = Date.now()
+  const r = await within(10000, convertToMarkdown(crafted, 'crafted.xlsx', { timeLimitMs: 2000 }))
+  assert.equal(r.ok, false)
+  assert.match(r.error, /took longer than 2 seconds/)
+  assert.ok(Date.now() - started < 8000, 'stopped well after the limit')
+})
+
+test('a genuine spreadsheet is read on the worker thread', async () => {
+  const r = await within(10000, convertToMarkdown(realWorkbook, 'sample.xlsx'))
+  assert.equal(r.ok, true, r.ok ? '' : `${r.code}: ${r.error}`)
+  assert.equal(r.meta?.isolated, true, 'read on the server thread, not a worker')
+})
 
 test('corrupt and misnamed files fail cleanly and quickly', async (t) => {
   const garbage = new Uint8Array(64 * 1024).map((_, i) => (i * 2654435761) >>> 24)
