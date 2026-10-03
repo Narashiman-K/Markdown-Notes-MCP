@@ -22,6 +22,17 @@ export type CloudOcr = (bytes: Uint8Array, mimeType: string) => Promise<string>
 export interface ConvertOptions {
   /** 'cloud' uses the injected OCR; 'offline' uses bundled Tesseract. */
   ocrMode?: 'cloud' | 'offline'
+  /**
+   * Tesseract language codes for offline OCR, e.g. ['kan'] or ['kan', 'eng'].
+   * English when absent. See lib/ocrLanguages.ts for what is built in.
+   */
+  ocrLanguages?: readonly string[]
+  /**
+   * Scanned PDFs: keep each page's own picture beside the text read from it,
+   * so the exact original is always at hand. Off unless asked for; each page
+   * adds roughly 100–250 KB to the document.
+   */
+  keepPageImages?: boolean
   cloudOcr?: CloudOcr
   /** Injected for audio, which has no offline path. */
   transcribe?: (bytes: Uint8Array) => Promise<string>

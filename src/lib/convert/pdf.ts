@@ -15,6 +15,7 @@ import * as pdfjs from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import type { ConvertResult } from './types'
 import { titleFrom, tidy } from './normalise'
+import { PAGE_BREAK, pageSizeLine } from './pageNotes'
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -68,9 +69,17 @@ export async function convertPdf(bytes: Uint8Array, fileName: string): Promise<C
   let emptyPages = 0
   const allSizes: number[] = []
   const pageBlocks: Array<Array<{ text: string; size: number }>> = []
+  let pageSize: { width: number; height: number } | null = null
 
   for (let n = 1; n <= doc.numPages; n++) {
     const page = await doc.getPage(n)
+    // The first page's size stands for the document: page view shows every
+    // sheet at it. The viewport at scale 1 is in points and allows for a
+    // page stored rotated.
+    if (!pageSize) {
+      const v = page.getViewport({ scale: 1 })
+      pageSize = { width: v.width, height: v.height }
+    }
     const content = await page.getTextContent()
 
     const items: Item[] = content.items
@@ -104,8 +113,14 @@ export async function convertPdf(bytes: Uint8Array, fileName: string): Promise<C
   const sorted = [...allSizes].sort((a, b) => a - b)
   const bodySize = sorted[Math.floor(sorted.length / 2)] ?? 10
 
+  if (pageSize) parts.push(pageSizeLine(pageSize.width, pageSize.height))
+  let firstPage = true
   pageBlocks.forEach((blocks, index) => {
     if (!blocks.length) return
+    // Where the original page ended: a sheet edge in page view, a page break
+    // in print.
+    if (!firstPage) parts.push(PAGE_BREAK)
+    firstPage = false
     if (doc.numPages > 1) parts.push(`## Page ${index + 1}`)
 
     let paragraph: string[] = []

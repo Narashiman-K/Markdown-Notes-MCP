@@ -59,11 +59,17 @@ const PROJECTS = {
  * outward it will be absent from the apps, and that is not drift — it is work
  * not yet done. Listing it here stops a known gap drowning out real surprises.
  */
-const EXPECTED_DIFFERENCES = {
-  'runtime.ts': 'introduced here; sync outward when the apps next change'
-}
+const EXPECTED_DIFFERENCES = {}
 
-const hash = async (p) => createHash('sha256').update(await readFile(p)).digest('hex').slice(0, 12)
+/*
+ * The one line allowed to differ: the import of shared/formats, which sits one
+ * folder deeper in the Windows app (`../../../../shared/formats`) than here and
+ * in the web app (`../../shared/formats`). Compared with the depth taken out,
+ * so any other change to the file still shows as drift.
+ */
+const comparable = (text) => text.replace(/(['"])(?:\.\.\/)+shared\/formats\1/g, "'shared/formats'")
+const hash = async (p) =>
+  createHash('sha256').update(comparable(await readFile(p, 'utf8'))).digest('hex').slice(0, 12)
 
 async function listTs(dir) {
   if (!existsSync(dir)) return null

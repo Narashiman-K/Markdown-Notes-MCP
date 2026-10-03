@@ -9,6 +9,7 @@ import type { ConvertResult, ConvertOptions } from './types'
 import { extensionOf, FORMAT_GROUPS } from './types'
 import { normaliseMarkdown } from './normalise'
 import { convertPdf } from './pdf'
+import { canOcrPdf, ocrScannedPdf } from './pdfOcr'
 import { convertDocx, convertSheet, convertPptx, convertOdt, convertEpub } from './office'
 import { convertText } from './text'
 import { convertImage } from './ocr'
@@ -33,7 +34,17 @@ export async function convertToMarkdown(
   try {
     if (ext === 'pdf') {
       onProgress?.('Extracting text from the PDF…', 0.2)
+      /*
+       * pdf.js transfers the buffer it is given to its worker, which leaves
+       * `bytes` empty afterwards. A scanned PDF is opened a second time to be
+       * drawn and read, so that pass needs a copy taken first — and only where
+       * it can happen, so text PDFs on hosts without a canvas pay nothing.
+       */
+      const forOcr = canOcrPdf() ? bytes.slice() : null
       result = await convertPdf(bytes, fileName)
+      if (!result.ok && result.code === 'SCANNED_PDF' && forOcr) {
+        result = await ocrScannedPdf(forOcr, fileName, options)
+      }
     } else if (ext === 'docx') {
       onProgress?.('Reading the Word document…', 0.3)
       result = await convertDocx(bytes, fileName)
