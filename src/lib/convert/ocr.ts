@@ -19,6 +19,7 @@ import { extensionOf } from './types'
 import { titleFrom, tidy } from './normalise'
 import { normaliseOcrLanguages, describeOcrLanguages, tidyOcrText, keepOcrLineBreaks } from './ocrLanguages'
 import { convertRuntime } from './runtime'
+import { canTurn, canvasBlob, findTurn, imageCanvas, turnCanvas, UPRIGHT_CONFIDENCE, type Turn } from './orientation'
 
 const MIME: Record<string, string> = {
   jpg: 'image/jpeg',
@@ -180,11 +181,32 @@ async function offlineOcr(
   languages?: readonly string[]
 ): Promise<ConvertResult> {
   const reader = await openOfflineReader(onProgress, languages)
+  // Drawn once onto a canvas (in a browser) so it can be turned if need be;
+  // that also applies a photo's own EXIF rotation.
+  let canvas: HTMLCanvasElement | null = null
   try {
-    const image = convertRuntime().ocrImageInput(bytes, await toPngIfNeeded(bytes, fileName))
-    const { text, confidence } = await reader.read(image, (f) =>
-      onProgress?.('Reading text from the image…', 0.3 + f * 0.7)
-    )
+    const png = await toPngIfNeeded(bytes, fileName)
+    canvas = canTurn() ? await imageCanvas(png) : null
+    const report = (f: number): void => onProgress?.('Reading text from the image…', 0.3 + f * 0.7)
+    const image = canvas ? await canvasBlob(canvas) : convertRuntime().ocrImageInput(bytes, png)
+    let { text, confidence } = await reader.read(image, report)
+
+    // Read badly as it is: perhaps upside down or sideways (orientation.ts).
+    let turned: Turn = 0
+    if (canvas && confidence < UPRIGHT_CONFIDENCE) {
+      onProgress?.('Checking which way up the image is…', 0.9)
+      const { turn } = await findTurn(canvas, reader, confidence)
+      if (turn) {
+        const upright = turnCanvas(canvas, turn)
+        try {
+          ;({ text, confidence } = await reader.read(await canvasBlob(upright), report))
+          turned = turn
+        } finally {
+          upright.width = 0
+          upright.height = 0
+        }
+      }
+    }
 
     if (!text) {
       return {
@@ -201,12 +223,24 @@ async function offlineOcr(
         : ''
 
     const top = confidence < UNREADABLE_CONFIDENCE ? unreadableWarning(confidence, languages) : ''
+    const turnNote = turned
+      ? `\n\n> The image was ${turned === 180 ? 'upside down' : 'on its side'} and was turned upright before reading.`
+      : ''
     return {
       ok: true,
-      markdown: top + tidy([`# ${titleFrom(fileName)}`, text]) + (top ? '' : warning),
-      meta: { engine: 'tesseract', confidence, languages: normaliseOcrLanguages(languages).join('+') }
+      markdown: top + tidy([`# ${titleFrom(fileName)}`, text]) + (top ? '' : warning) + turnNote,
+      meta: {
+        engine: 'tesseract',
+        confidence,
+        languages: normaliseOcrLanguages(languages).join('+'),
+        ...(turned ? { turned } : {})
+      }
     }
   } finally {
+    if (canvas) {
+      canvas.width = 0
+      canvas.height = 0
+    }
     await reader.close()
   }
 }
@@ -232,9 +266,42 @@ export async function convertImage(
     }
   }
 
+  // Turned upright before it is sent, as for offline reading. Checking uses
+  // the offline engine on this device; if that cannot start, the image goes
+  // as it is.
+  let sendBytes = bytes
+  let sendType = mimeFor(fileName)
+  if (canTurn()) {
+    let canvas: HTMLCanvasElement | null = null
+    let reader: OfflineReader | null = null
+    try {
+      canvas = await imageCanvas(await toPngIfNeeded(bytes, fileName))
+      if (canvas) {
+        options.onProgress?.('Checking which way up the image is…', 0.1)
+        reader = await openOfflineReader(undefined, options.ocrLanguages)
+        const { turn } = await findTurn(canvas, reader)
+        if (turn) {
+          const upright = turnCanvas(canvas, turn)
+          sendBytes = new Uint8Array(await (await canvasBlob(upright)).arrayBuffer())
+          sendType = 'image/png'
+          upright.width = 0
+          upright.height = 0
+        }
+      }
+    } catch (err) {
+      console.warn('Could not check image orientation; sending it as it is.', err)
+    } finally {
+      if (canvas) {
+        canvas.width = 0
+        canvas.height = 0
+      }
+      await reader?.close()
+    }
+  }
+
   options.onProgress?.('Sending the image for text extraction…', 0.3)
   try {
-    const text = (await options.cloudOcr(bytes, mimeFor(fileName))).trim()
+    const text = (await options.cloudOcr(sendBytes, sendType)).trim()
     if (!text) {
       return { ok: false, code: 'NO_TEXT', error: 'The service returned no text for this image.' }
     }

@@ -24,6 +24,7 @@ import { openOfflineReader, unreadableWarning, UNREADABLE_CONFIDENCE, type Offli
 import { CloudCaller } from './cloudRetry'
 import { normaliseOcrLanguages } from './ocrLanguages'
 import { PAGE_BREAK, pageSizeLine } from './pageNotes'
+import { canvasBlob, describeTurns, findTurn, turnCanvas, UPRIGHT_CONFIDENCE, type Turn } from './orientation'
 
 /** Pixels across an A4 page at 300 dpi, the width pages are scaled towards. */
 const TARGET_WIDTH = 2480
@@ -36,13 +37,6 @@ const KEEP_WIDTH = 1120
 
 export function canOcrPdf(): boolean {
   return typeof document !== 'undefined'
-}
-
-interface RenderedPage {
-  /** For OCR: a lossless 300 dpi PNG. */
-  image: Blob
-  /** For keeping, when asked: a smaller JPEG as a data URL. */
-  keep?: string
 }
 
 /** A downscaled copy of the page as a JPEG data URL. */
@@ -71,7 +65,12 @@ async function keepCopy(source: HTMLCanvasElement): Promise<string> {
   }
 }
 
-async function renderPage(page: pdfjs.PDFPageProxy, keep: boolean): Promise<RenderedPage> {
+/**
+ * Draws one page at about 300 dpi, the resolution Tesseract is trained for.
+ * The caller owns the canvas and must release it (width = height = 0): a
+ * rendered A4 page is ~35 MB of pixels.
+ */
+async function renderPage(page: pdfjs.PDFPageProxy): Promise<HTMLCanvasElement> {
   const natural = page.getViewport({ scale: 1 })
   // Small pages are scaled up towards 300 dpi; no page is drawn larger than
   // 4x, which bounds memory on an unusually large sheet.
@@ -86,24 +85,21 @@ async function renderPage(page: pdfjs.PDFPageProxy, keep: boolean): Promise<Rend
   // Scans with transparency would otherwise read as black-on-black.
   context.fillStyle = '#ffffff'
   context.fillRect(0, 0, canvas.width, canvas.height)
+  /*
+   * 'print' intent: pdf.js paces on-screen rendering with
+   * requestAnimationFrame, which the browser suspends in a background tab.
+   * Switching tabs during a long scan would freeze the OCR mid-page until the
+   * tab was shown again. Print rendering draws the same page without waiting
+   * for frames.
+   */
+  await page.render({ canvasContext: context, viewport, intent: 'print' }).promise
+  return canvas
+}
 
-  try {
-    /*
-     * 'print' intent: pdf.js paces on-screen rendering with
-     * requestAnimationFrame, which the browser suspends in a background tab.
-     * Switching tabs during a long scan would freeze the OCR mid-page until the
-     * tab was shown again. Print rendering draws the same page without waiting
-     * for frames.
-     */
-    await page.render({ canvasContext: context, viewport, intent: 'print' }).promise
-    const image = await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not capture the page image.'))), 'image/png')
-    )
-    return { image, keep: keep ? await keepCopy(canvas) : undefined }
-  } finally {
-    // A rendered A4 page is ~35 MB of pixels; let it go before the next one.
-    canvas.width = 0
-    canvas.height = 0
+function release(...canvases: HTMLCanvasElement[]): void {
+  for (const c of canvases) {
+    c.width = 0
+    c.height = 0
   }
 }
 
@@ -122,6 +118,8 @@ export async function ocrScannedPdf(
   let cloudGaveUp: string | null = null
   const offlinePages: number[] = []
   const kept: Array<string | undefined> = []
+  /** Pages that came in upside down or sideways, and were turned upright. */
+  const turned: Array<{ page: number; turn: Turn }> = []
   let pageSize: { width: number; height: number } | null = null
 
   const status = (n: number, f: number, extra = ''): void =>
@@ -148,29 +146,65 @@ export async function ocrScannedPdf(
         const v = page.getViewport({ scale: 1 })
         pageSize = { width: v.width, height: v.height }
       }
-      const { image, keep } = await renderPage(page, options.keepPageImages === true)
-      kept.push(keep)
+      const rendered = await renderPage(page)
       page.cleanup()
-
-      if (wantCloud && !cloudGaveUp) {
-        try {
-          const bytesOut = new Uint8Array(await image.arrayBuffer())
-          const raw = await cloud.run(() => options.cloudOcr!(bytesOut, 'image/png'))
-          texts.push(raw.trim().replace(/^```(?:markdown)?\s*\n?/i, '').replace(/\n?```\s*$/i, ''))
-          continue
-        } catch (err) {
-          // Retries are spent, or the error is one retrying cannot fix. Rather
-          // than lose the pages already read, carry on offline from here: a
-          // service that has just refused us is unlikely to accept the next
-          // page, and waiting out its backoff on every page would cost minutes.
-          cloudGaveUp = String((err as Error)?.message ?? err)
+      let upright = rendered
+      try {
+        /*
+         * Which way up (orientation.ts). Offline, the page is read as it is
+         * first, and only one that reads poorly is tried turned, so upright
+         * pages cost nothing extra. For the cloud the page is checked before
+         * it is sent, using the offline engine; if that cannot start, the
+         * page goes as it is.
+         */
+        let turn: Turn = 0
+        let asIs: { text: string; confidence: number } | null = null
+        if (wantCloud && !cloudGaveUp) {
+          try {
+            reader ??= await openOfflineReader(onProgress, options.ocrLanguages)
+            status(n, 0, ' (checking which way up)')
+            turn = (await findTurn(rendered, reader)).turn
+          } catch (err) {
+            console.warn('Could not check page orientation; sending the page as it is.', err)
+          }
+        } else {
+          asIs = await readOffline(n, await canvasBlob(rendered))
+          if (asIs.confidence < UPRIGHT_CONFIDENCE) {
+            status(n, 1, ' (checking which way up)')
+            turn = (await findTurn(rendered, reader!, asIs.confidence)).turn
+          }
         }
-      }
+        if (turn) {
+          upright = turnCanvas(rendered, turn)
+          turned.push({ page: n, turn })
+          asIs = null
+        }
+        kept.push(options.keepPageImages === true ? await keepCopy(upright) : undefined)
+        const image = asIs ? null : await canvasBlob(upright)
 
-      const { text, confidence } = await readOffline(n, image)
-      texts.push(text)
-      if (text) confidences.push(confidence)
-      if (wantCloud) offlinePages.push(n)
+        if (wantCloud && !cloudGaveUp && image) {
+          try {
+            const bytesOut = new Uint8Array(await image.arrayBuffer())
+            const raw = await cloud.run(() => options.cloudOcr!(bytesOut, 'image/png'))
+            texts.push(raw.trim().replace(/^```(?:markdown)?\s*\n?/i, '').replace(/\n?```\s*$/i, ''))
+            continue
+          } catch (err) {
+            // Retries are spent, or the error is one retrying cannot fix. Rather
+            // than lose the pages already read, carry on offline from here: a
+            // service that has just refused us is unlikely to accept the next
+            // page, and waiting out its backoff on every page would cost minutes.
+            cloudGaveUp = String((err as Error)?.message ?? err)
+          }
+        }
+
+        const { text, confidence } = asIs ?? (await readOffline(n, image!))
+        texts.push(text)
+        if (text) confidences.push(confidence)
+        if (wantCloud) offlinePages.push(n)
+      } finally {
+        // A rendered A4 page is ~35 MB of pixels; let it go before the next one.
+        release(...(upright === rendered ? [rendered] : [rendered, upright]))
+      }
     }
 
     if (!texts.some((t) => t.length > 0)) {
@@ -200,6 +234,7 @@ export async function ocrScannedPdf(
     const allOffline = !wantCloud || offlinePages.length === pages
     const how = allCloud ? 'cloud' : allOffline ? 'offline' : 'cloud and offline'
     let note = `\n\n> Read from a scanned PDF by ${how} OCR. Check names and figures against the original.`
+    if (turned.length) note += ` ${describeTurns(turned)} in the scan, and ${turned.length > 1 ? 'were' : 'was'} turned upright before reading.`
     if (wantCloud && offlinePages.length) {
       const which = offlinePages.length === pages ? 'Every page was' : `Page${offlinePages.length > 1 ? 's' : ''} ${offlinePages.join(', ')} ${offlinePages.length > 1 ? 'were' : 'was'}`
       note += ` ${which} read offline because the cloud service was unavailable (${cloudGaveUp ?? 'no reason given'}).`
@@ -216,6 +251,7 @@ export async function ocrScannedPdf(
         engine: allCloud ? 'gemini' : allOffline ? 'tesseract' : 'gemini+tesseract',
         pages,
         scanned: true,
+        ...(turned.length ? { turned: turned.map((t) => `${t.page}:${t.turn}`) } : {}),
         ...(offlinePages.length && wantCloud ? { offlinePages } : {}),
         ...(confidence !== undefined ? { confidence } : {}),
         ...(allCloud ? {} : { languages: normaliseOcrLanguages(options.ocrLanguages).join('+') })
