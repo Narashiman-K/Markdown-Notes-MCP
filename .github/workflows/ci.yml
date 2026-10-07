@@ -1,0 +1,52 @@
+name: CI
+
+# Type check, build, the converter and security tests, a smoke run over the
+# sample files, and the security audit gate. Until October 2026 this package
+# had no CI and its tests ran only on the author's machine.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+        env:
+          # The build tools are devDependencies.
+          NODE_ENV: development
+
+      - name: Security audit gate
+        # Fails on any high or critical advisory not listed, with a reason and
+        # a review date, in audit-allowlist.json (scripts/audit-gate.mjs).
+        run: npm run audit:gate
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Tests (converters, server, security)
+        run: npm test
+
+      - name: Smoke run over the sample files
+        # Audio needs an AssemblyAI key, which CI does not have, so that one
+        # file is expected to fail; any other failure fails the job.
+        run: |
+          npm run smoke 2>&1 | tee smoke.log || true
+          if grep FAILED smoke.log | grep -v 'sample.wav'; then exit 1; fi
+          grep -q 'converted' smoke.log

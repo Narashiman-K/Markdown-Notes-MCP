@@ -1,0 +1,9 @@
+[
+  {
+    "id": "GHSA-86w9-cpqp-85rv",
+    "package": "node-forge",
+    "reason": "Only reached through @anthropic-ai/mcpb, the developer tool that packs the .mcpb bundle. Not a runtime dependency, and the bundle is not signed with it. No patched node-forge exists (all versions <=1.4.0).",
+    "accepted": "2026-10-07",
+    "reviewBy": "2026-12-31"
+  }
+]

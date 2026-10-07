@@ -34,13 +34,14 @@
     "prebuild": "node scripts/stage-tesseract.mjs",
     "smoke": "node scripts/smoke.mjs",
     "pretest": "node scripts/build.mjs",
-    "pack:mcpb": "node scripts/pack-mcpb.mjs"
+    "pack:mcpb": "node scripts/pack-mcpb.mjs",
+    "audit:gate": "node scripts/audit-gate.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "jsdom": "^26.0.0",
     "jszip": "^3.10.1",
-    "mammoth": "^1.12.1",
+    "mammoth": "^1.13.0",
     "pdfjs-dist": "^4.10.38",
     "tesseract.js": "^7.0.0",
     "turndown": "^7.2.4",
@@ -79,5 +80,8 @@
   "homepage": "https://github.com/Narashiman-K/Markdown-Notes-MCP#readme",
   "bugs": {
     "url": "https://github.com/Narashiman-K/Markdown-Notes-MCP/issues"
+  },
+  "overrides": {
+    "tmp": "^0.2.7"
   }
 }
