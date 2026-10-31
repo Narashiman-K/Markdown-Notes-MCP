@@ -10,6 +10,7 @@ import JSZip from 'jszip'
 import type { ConvertResult } from './types'
 import { htmlToMarkdown, parseXml } from './html'
 import { convertRuntime } from './runtime'
+import { canExtractImages, pictureDataUrl } from './pdfImages'
 import { titleFrom, tidy, toTable } from './normalise'
 
 /**
@@ -54,7 +55,39 @@ export function promoteTableHeaders(html: string): string {
 
 /* ------------------------------------------------------------------- Word */
 
-export async function convertDocx(bytes: Uint8Array, fileName: string): Promise<ConvertResult> {
+/** data:<mime>;base64,<data> -> bytes and type. */
+function decodeDataUrl(url: string): { bytes: Uint8Array; mime: string } | null {
+  const m = /^data:([^;,]+);base64,(.*)$/s.exec(url)
+  if (!m) return null
+  const bin = atob(m[2])
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return { bytes, mime: m[1] }
+}
+
+/**
+ * Word pictures, kept: each is shrunk to a JPEG of at most 1600 px across
+ * (pdfImages.ts); one the browser cannot draw (EMF, WMF) is left to the
+ * placeholder. A picture inside a heading paragraph (as Word allows) moves to
+ * its own line just above it, so the heading stays a heading.
+ */
+async function keepWordPictures(html: string): Promise<string> {
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html')
+  for (const img of Array.from(doc.querySelectorAll('img'))) {
+    const decoded = decodeDataUrl(img.getAttribute('src') ?? '')
+    const url = decoded ? await pictureDataUrl(decoded.bytes, decoded.mime) : null
+    if (url) img.setAttribute('src', url)
+    const heading = img.closest('h1, h2, h3, h4, h5, h6')
+    if (heading) {
+      const p = doc.createElement('p')
+      p.appendChild(img)
+      heading.parentNode?.insertBefore(p, heading)
+    }
+  }
+  return doc.body.innerHTML
+}
+
+export async function convertDocx(bytes: Uint8Array, fileName: string, options: { pictures?: boolean } = {}): Promise<ConvertResult> {
   const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
   const result = await mammoth.convertToHtml(
     // Cast because the shape is chosen by the host: an ArrayBuffer in a
@@ -71,11 +104,14 @@ export async function convertDocx(bytes: Uint8Array, fileName: string): Promise<
     }
   )
 
-  const body = htmlToMarkdown(promoteTableHeaders(result.value)).trim()
+  const pictures = options.pictures !== false && canExtractImages()
+  const html = pictures ? await keepWordPictures(result.value) : result.value
+  const body = htmlToMarkdown(promoteTableHeaders(html), { keepDataImages: pictures }).trim()
   if (!body) return { ok: false, code: 'EMPTY', error: 'This Word document contains no readable text.' }
 
   // Only add our own title if the document does not already open with one.
-  const hasTitle = /^#\s/.test(body)
+  // A picture moved above the opening heading does not make it any less the title.
+  const hasTitle = /^#\s/.test(body.replace(/^(?:!\[[^\]]*\]\([^)]*\)\s*)+/, ''))
   return {
     ok: true,
     markdown: tidy([hasTitle ? '' : `# ${titleFrom(fileName)}`, body]),
@@ -96,7 +132,38 @@ function byNumber(a: string, b: string): number {
   return n(a) - n(b)
 }
 
-export async function convertPptx(bytes: Uint8Array, fileName: string): Promise<ConvertResult> {
+const PPT_MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp' }
+
+/** A slide's pictures, in the order the slide draws them, as data URLs. */
+async function slidePictures(zip: JSZip, slidePath: string, doc: Document): Promise<string[]> {
+  const relsPath = slidePath.replace(/slides\/(slide\d+\.xml)$/, 'slides/_rels/$1.rels')
+  const relsFile = zip.file(relsPath)
+  if (!relsFile) return []
+  const rels = parseXml(await relsFile.async('string'))
+  const targets = new Map<string, string>()
+  for (const r of Array.from(rels.getElementsByTagName('Relationship'))) {
+    const id = r.getAttribute('Id')
+    const target = r.getAttribute('Target')
+    if (id && target) targets.set(id, target)
+  }
+  const out: string[] = []
+  for (const blip of Array.from(doc.getElementsByTagName('a:blip'))) {
+    const target = targets.get(blip.getAttribute('r:embed') ?? '')
+    if (!target) continue
+    // Targets are relative to ppt/slides/, usually "../media/image1.png".
+    const path = `ppt/slides/${target}`.replace(/[^/]+\/\.\.\//g, '')
+    const ext = path.split('.').pop()?.toLowerCase() ?? ''
+    const file = zip.file(path)
+    if (!file || !PPT_MIME[ext]) continue
+    const url = await pictureDataUrl(await file.async('uint8array'), PPT_MIME[ext])
+    if (url && !out.includes(url)) out.push(url)
+  }
+  return out
+}
+
+export async function convertPptx(bytes: Uint8Array, fileName: string, options: { pictures?: boolean } = {}): Promise<ConvertResult> {
+  const withPictures = options.pictures !== false && canExtractImages()
+  let pictureCount = 0
   const zip = await JSZip.loadAsync(bytes)
   const slides = Object.keys(zip.files).filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p)).sort(byNumber)
   if (!slides.length) return { ok: false, code: 'EMPTY', error: 'No slides found in this presentation.' }
@@ -131,6 +198,14 @@ export async function convertPptx(bytes: Uint8Array, fileName: string): Promise<
       parts.push('*(no text on this slide)*')
     }
 
+    // The slide's pictures, after its text ("Include pictures").
+    if (withPictures) {
+      for (const url of await slidePictures(zip, slides[i], doc)) {
+        pictureCount++
+        parts.push(`![Picture ${pictureCount}](${url})`)
+      }
+    }
+
     const notePath = notes.find((p) => Number(/(\d+)\.xml$/.exec(p)?.[1]) === i + 1)
     if (notePath) {
       const noteXml = await zip.file(notePath)!.async('string')
@@ -144,7 +219,7 @@ export async function convertPptx(bytes: Uint8Array, fileName: string): Promise<
     }
   }
 
-  return { ok: true, markdown: tidy(parts), meta: { slides: slides.length } }
+  return { ok: true, markdown: tidy(parts), meta: { slides: slides.length, ...(pictureCount ? { pictures: pictureCount } : {}) } }
 }
 
 /* --------------------------------------------------------- OpenDocument text */

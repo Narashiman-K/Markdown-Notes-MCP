@@ -48,13 +48,13 @@ export async function convertToMarkdown(
       }
     } else if (ext === 'docx') {
       onProgress?.('Reading the Word document…', 0.3)
-      result = await convertDocx(bytes, fileName)
+      result = await convertDocx(bytes, fileName, { pictures: options.pdfImages })
     } else if (['xlsx', 'xlsm', 'xls', 'ods'].includes(ext)) {
       onProgress?.('Reading the spreadsheet…', 0.3)
       result = await convertSheetSafely(bytes, fileName, options.timeLimitMs)
     } else if (ext === 'pptx') {
       onProgress?.('Reading the presentation…', 0.3)
-      result = await convertPptx(bytes, fileName)
+      result = await convertPptx(bytes, fileName, { pictures: options.pdfImages })
     } else if (ext === 'odt') {
       onProgress?.('Reading the OpenDocument file…', 0.3)
       result = await convertOdt(bytes, fileName)

@@ -33,7 +33,7 @@ export interface ConvertOptions {
    * adds roughly 100–250 KB to the document.
    */
   keepPageImages?: boolean
-  /** Text PDFs: take their pictures out too, each where it sits on the page. On unless false. */
+  /** Keep pictures from text PDFs, Word and PowerPoint files (JPEG, ≤1600 px). On unless false; browser only. */
   pdfImages?: boolean
   /**
    * How long a spreadsheet may take to read before it is stopped and reported

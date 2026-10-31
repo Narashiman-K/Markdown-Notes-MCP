@@ -113,6 +113,33 @@ async function toDataUrl(obj: ImageObject): Promise<string | null> {
     made = true
   }
   try {
+    return bitmapToDataUrl(source)
+  } finally {
+    if (made) source.close()
+  }
+}
+
+/**
+ * A picture from a Word or PowerPoint file (bytes and MIME type) as a JPEG
+ * data URL, sized and backed like the PDF ones; null for one the browser
+ * cannot draw (EMF, WMF) or one too small to be a picture.
+ */
+export async function pictureDataUrl(bytes: Uint8Array, mime: string): Promise<string | null> {
+  if (!canExtractImages() || /emf|wmf|tiff?/i.test(mime)) return null
+  try {
+    const bitmap = await createImageBitmap(new Blob([bytes as unknown as BlobPart], { type: mime }))
+    try {
+      return bitmapToDataUrl(bitmap)
+    } finally {
+      bitmap.close()
+    }
+  } catch {
+    return null
+  }
+}
+
+function bitmapToDataUrl(source: ImageBitmap): string | null {
+  {
     if (source.width < MIN_PIXELS || source.height < MIN_PIXELS) return null
     const scale = Math.min(1, MAX_WIDTH / source.width)
     const canvas = document.createElement('canvas')
@@ -128,8 +155,6 @@ async function toDataUrl(obj: ImageObject): Promise<string | null> {
     canvas.width = 0
     canvas.height = 0
     return url
-  } finally {
-    if (made) source.close()
   }
 }
 

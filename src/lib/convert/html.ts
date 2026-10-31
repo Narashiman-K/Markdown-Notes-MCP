@@ -36,15 +36,17 @@ function build(): TurndownService {
     replacement: () => ''
   })
 
-  // Keep images but discard base64 payloads, which would bloat the file
-  // enormously and are unreadable as Markdown anyway.
+  // Pictures embedded as data URLs are kept only when the caller has already
+  // shrunk them (office.ts, "Include pictures"); otherwise the payload would
+  // bloat the file, and a placeholder stands in.
   td.addRule('images', {
     filter: 'img',
     replacement: (_content, node) => {
       const el = node as HTMLImageElement
-      const alt = el.getAttribute('alt') || 'image'
+      const alt = (el.getAttribute('alt') || 'image').replace(/[[\]\n]/g, ' ').trim() || 'image'
       const src = el.getAttribute('src') || ''
-      if (!src || src.startsWith('data:')) return `*[embedded image: ${alt}]*`
+      if (!src) return `*[embedded image: ${alt}]*`
+      if (src.startsWith('data:')) return keepDataImages && /^data:image\/jpeg;base64,/.test(src) ? `![${alt}](${src})` : `*[embedded image: ${alt}]*`
       return `![${alt}](${src})`
     }
   })
@@ -52,9 +54,17 @@ function build(): TurndownService {
   return td
 }
 
-export function htmlToMarkdown(html: string): string {
+let keepDataImages = false
+
+/** `keepDataImages`: keep pictures already shrunk to JPEG data URLs. */
+export function htmlToMarkdown(html: string, opts: { keepDataImages?: boolean } = {}): string {
   if (!service) service = build()
-  return service.turndown(html)
+  keepDataImages = opts.keepDataImages === true
+  try {
+    return service.turndown(html)
+  } finally {
+    keepDataImages = false
+  }
 }
 
 /** Parses an XML/XHTML string with the browser's parser. */
