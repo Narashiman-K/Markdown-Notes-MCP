@@ -42,7 +42,7 @@ export async function convertToMarkdown(
        * it can happen, so text PDFs on hosts without a canvas pay nothing.
        */
       const forOcr = canOcrPdf() ? bytes.slice() : null
-      result = await convertPdf(bytes, fileName)
+      result = await convertPdf(bytes, fileName, { images: options.pdfImages })
       if (!result.ok && result.code === 'SCANNED_PDF' && forOcr) {
         result = await ocrScannedPdf(forOcr, fileName, options)
       }

@@ -33,6 +33,8 @@ export interface ConvertOptions {
    * adds roughly 100–250 KB to the document.
    */
   keepPageImages?: boolean
+  /** Text PDFs: take their pictures out too, each where it sits on the page. On unless false. */
+  pdfImages?: boolean
   /**
    * How long a spreadsheet may take to read before it is stopped and reported
    * as damaged. 30 seconds when absent; the tests use less.

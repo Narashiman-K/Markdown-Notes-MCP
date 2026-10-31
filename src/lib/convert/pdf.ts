@@ -16,6 +16,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import type { ConvertResult } from './types'
 import { titleFrom, tidy } from './normalise'
 import { PAGE_BREAK, pageSizeLine } from './pageNotes'
+import { canExtractImages, extractPageImages, type PageImage } from './pdfImages'
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -27,7 +28,7 @@ interface Item {
 }
 
 /** Groups text items into lines by vertical position, then into paragraphs. */
-function itemsToBlocks(items: Item[]): Array<{ text: string; size: number }> {
+function itemsToBlocks(items: Item[]): Array<{ text: string; size: number; y: number }> {
   if (!items.length) return []
 
   // Bucket by y, allowing a little jitter within a line.
@@ -57,18 +58,26 @@ function itemsToBlocks(items: Item[]): Array<{ text: string; size: number }> {
     }
     return {
       text: text.replace(/\s+/g, ' ').trim(),
-      size: Math.max(...line.map((i) => i.height))
+      size: Math.max(...line.map((i) => i.height)),
+      // Top of the line, measured down the page: where pictures slot in.
+      y: Math.min(...line.map((i) => i.y - i.height))
     }
   })
 }
 
-export async function convertPdf(bytes: Uint8Array, fileName: string): Promise<ConvertResult> {
+/**
+ * `images`: take the pictures out too, each placed where it sits on its page
+ * (pdfImages.ts). On unless turned off, and only where there is a canvas.
+ */
+export async function convertPdf(bytes: Uint8Array, fileName: string, options: { images?: boolean } = {}): Promise<ConvertResult> {
+  const withImages = options.images !== false && canExtractImages()
   const doc = await pdfjs.getDocument({ data: bytes, useWorkerFetch: false }).promise
 
   const parts: string[] = [`# ${titleFrom(fileName)}`]
   let emptyPages = 0
   const allSizes: number[] = []
-  const pageBlocks: Array<Array<{ text: string; size: number }>> = []
+  const pageBlocks: Array<Array<{ text: string; size: number; y: number }>> = []
+  const pageImages: PageImage[][] = []
   let pageSize: { width: number; height: number } | null = null
 
   for (let n = 1; n <= doc.numPages; n++) {
@@ -94,6 +103,7 @@ export async function convertPdf(bytes: Uint8Array, fileName: string): Promise<C
 
     const blocks = itemsToBlocks(items)
     pageBlocks.push(blocks)
+    pageImages.push(withImages ? await extractPageImages(page).catch(() => []) : [])
     blocks.forEach((b) => allSizes.push(b.size))
     if (!blocks.length) emptyPages++
     page.cleanup()
@@ -109,6 +119,14 @@ export async function convertPdf(bytes: Uint8Array, fileName: string): Promise<C
     }
   }
 
+  // The same picture at the same place on three pages or more is a header
+  // or footer logo, not content. The place matters: a document can reuse its
+  // logo in the body too, and that one stays.
+  const placeOf = (i: PageImage): string => `${i.fingerprint}@${Math.round(i.y / 20)}`
+  const seen = new Map<string, number>()
+  for (const imgs of pageImages) for (const f of new Set(imgs.map(placeOf))) seen.set(f, (seen.get(f) ?? 0) + 1)
+  let pictures = 0
+
   // A line noticeably larger than the document's typical size is a heading.
   const sorted = [...allSizes].sort((a, b) => a - b)
   const bodySize = sorted[Math.floor(sorted.length / 2)] ?? 10
@@ -116,7 +134,8 @@ export async function convertPdf(bytes: Uint8Array, fileName: string): Promise<C
   if (pageSize) parts.push(pageSizeLine(pageSize.width, pageSize.height))
   let firstPage = true
   pageBlocks.forEach((blocks, index) => {
-    if (!blocks.length) return
+    const images = pageImages[index].filter((i) => (seen.get(placeOf(i)) ?? 0) < 3)
+    if (!blocks.length && !images.length) return
     // Where the original page ended: a sheet edge in page view, a page break
     // in print.
     if (!firstPage) parts.push(PAGE_BREAK)
@@ -131,7 +150,19 @@ export async function convertPdf(bytes: Uint8Array, fileName: string): Promise<C
       }
     }
 
+    // Pictures go in before the first line below their top edge.
+    let next = 0
+    const picturesAbove = (y: number): void => {
+      while (next < images.length && images[next].y <= y) {
+        flush()
+        pictures++
+        parts.push(`![Picture ${pictures}](${images[next].dataUrl})`)
+        next++
+      }
+    }
+
     for (const block of blocks) {
+      picturesAbove(block.y)
       if (!block.text) continue
       if (block.size > bodySize * 1.25 && block.text.length < 120) {
         flush()
@@ -142,6 +173,7 @@ export async function convertPdf(bytes: Uint8Array, fileName: string): Promise<C
       // A line ending in sentence punctuation and clearly short ends a paragraph.
       if (/[.!?:]$/.test(block.text) && block.text.length < 60) flush()
     }
+    picturesAbove(Infinity)
     flush()
   })
 
@@ -151,6 +183,6 @@ export async function convertPdf(bytes: Uint8Array, fileName: string): Promise<C
   return {
     ok: true,
     markdown: tidy(parts),
-    meta: { pages, emptyPages }
+    meta: { pages, emptyPages, ...(pictures ? { pictures } : {}) }
   }
 }
