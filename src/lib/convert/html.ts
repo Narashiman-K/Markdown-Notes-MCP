@@ -36,6 +36,14 @@ function build(): TurndownService {
     replacement: () => ''
   })
 
+  // Link targets made by the EPUB converter (office.ts): kept as empty
+  // anchors, so the book's own contents, index and footnote links can still
+  // jump to them. Only those ids; anything else would be clutter.
+  td.addRule('anchorTargets', {
+    filter: (node) => node.nodeName === 'A' && /^epub-\d+$/.test((node as Element).getAttribute('id') ?? '') && !(node as Element).getAttribute('href'),
+    replacement: (content, node) => `<a id="${(node as Element).getAttribute('id')}"></a>${content}`
+  })
+
   // Pictures embedded as data URLs are kept only when the caller has already
   // shrunk them (office.ts, "Include pictures"); otherwise the payload would
   // bloat the file, and a placeholder stands in.

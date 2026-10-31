@@ -60,7 +60,7 @@ export async function convertToMarkdown(
       result = await convertOdt(bytes, fileName)
     } else if (ext === 'epub') {
       onProgress?.('Reading the e-book…', 0.3)
-      result = await convertEpub(bytes, fileName)
+      result = await convertEpub(bytes, fileName, { pictures: options.pdfImages })
     } else if (FORMAT_GROUPS.images.includes(ext)) {
       result = await convertImage(bytes, fileName, options)
     } else if (FORMAT_GROUPS.audio.includes(ext)) {

@@ -268,7 +268,37 @@ export async function convertOdt(bytes: Uint8Array, fileName: string): Promise<C
 
 /* -------------------------------------------------------------------- EPUB */
 
-export async function convertEpub(bytes: Uint8Array, fileName: string): Promise<ConvertResult> {
+/** Resolves an href inside the EPUB against the file it appears in. */
+function resolveInBook(fromFile: string, href: string): { file: string; fragment: string } {
+  const [rawPath, fragment = ''] = href.split('#')
+  let path = rawPath ? decodeURIComponent(rawPath) : fromFile
+  if (rawPath) {
+    const dir = fromFile.includes('/') ? fromFile.slice(0, fromFile.lastIndexOf('/') + 1) : ''
+    const parts: string[] = []
+    for (const seg of (dir + path).split('/')) {
+      if (seg === '..') parts.pop()
+      else if (seg && seg !== '.') parts.push(seg)
+    }
+    path = parts.join('/')
+  }
+  return { file: path, fragment: decodeURIComponent(fragment) }
+}
+
+const BOOK_MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp' }
+
+/**
+ * EPUB chapters are XHTML. Read as plain HTML, the empty page markers books
+ * are full of (<a id="p12"/>) are not empty at all: each one opens a link that
+ * swallows everything after it, which garbled whole chapters. So each is read
+ * as XML, falling back to HTML only when it is not well formed.
+ *
+ * Links between chapters (contents, index, footnotes) point at files that do
+ * not exist once the book is one Markdown document. Each target that some
+ * link uses gets an anchor (<a id="epub-N">) where it is, and the links point
+ * at those; a link whose target cannot be found keeps its text, without the
+ * link. Pictures are kept like a Word file's ("Include pictures").
+ */
+export async function convertEpub(bytes: Uint8Array, fileName: string, options: { pictures?: boolean } = {}): Promise<ConvertResult> {
   const zip = await JSZip.loadAsync(bytes)
 
   // container.xml points at the OPF, which defines the real reading order.
@@ -301,12 +331,80 @@ export async function convertEpub(bytes: Uint8Array, fileName: string): Promise<
   const parts: string[] = [`# ${title}`]
   if (author) parts.push(`*by ${author}*`)
 
-  let chapters = 0
+  // Read every chapter first: a link in one can point into any other.
+  const chapterDocs: Array<{ path: string; body: Element }> = []
   for (const href of spine) {
-    const clean = decodeURIComponent(href.split('#')[0])
-    const entry = zip.file(baseDir + clean) ?? zip.file(clean)
+    const path = resolveInBook(baseDir + 'x', href.split('#')[0]).file
+    const entry = zip.file(path) ?? zip.file(decodeURIComponent(href.split('#')[0]))
     if (!entry) continue
-    const markdown = htmlToMarkdown(await entry.async('string')).trim()
+    const text = await entry.async('string')
+    let dom = new DOMParser().parseFromString(text, 'application/xhtml+xml')
+    if (dom.getElementsByTagName('parsererror').length) dom = new DOMParser().parseFromString(text, 'text/html')
+    const body = dom.getElementsByTagName('body')[0] ?? dom.documentElement
+    if (body) chapterDocs.push({ path, body })
+  }
+
+  // Links inside the book -> anchors in the one document.
+  const anchorFor = new Map<string, string>()
+  const links: Array<{ el: Element; key: string }> = []
+  for (const { path, body } of chapterDocs) {
+    for (const a of Array.from(body.getElementsByTagName('a'))) {
+      const href = a.getAttribute('href')
+      if (!href || /^[a-z][a-z0-9+.-]*:/i.test(href)) continue
+      const { file, fragment } = resolveInBook(path, href)
+      const key = `${file}#${fragment}`
+      if (!anchorFor.has(key)) anchorFor.set(key, `epub-${anchorFor.size + 1}`)
+      links.push({ el: a, key })
+    }
+  }
+  const placed = new Set<string>()
+  const anchorEl = (owner: Document, id: string): Element => {
+    const el = owner.createElementNS('http://www.w3.org/1999/xhtml', 'a')
+    el.setAttribute('id', id)
+    return el
+  }
+  for (const { path, body } of chapterDocs) {
+    const owner = body.ownerDocument
+    const start = anchorFor.get(`${path}#`)
+    if (start) {
+      body.insertBefore(anchorEl(owner, start), body.firstChild)
+      placed.add(start)
+    }
+    for (const el of Array.from(body.querySelectorAll('[id]'))) {
+      const id = anchorFor.get(`${path}#${el.getAttribute('id')}`)
+      if (id && !placed.has(id)) {
+        el.parentNode?.insertBefore(anchorEl(owner, id), el)
+        placed.add(id)
+      }
+    }
+  }
+  for (const { el, key } of links) {
+    const id = anchorFor.get(key)!
+    if (placed.has(id)) el.setAttribute('href', `#${id}`)
+    else el.removeAttribute('href')
+  }
+
+  // Pictures, from the book itself.
+  const pictures = options.pictures !== false && canExtractImages()
+  for (const { path, body } of chapterDocs) {
+    for (const img of Array.from(body.getElementsByTagName('img'))) {
+      const src = img.getAttribute('src') ?? ''
+      const { file } = resolveInBook(path, src)
+      const ext = file.split('.').pop()?.toLowerCase() ?? ''
+      const data = pictures && !/^[a-z]+:/i.test(src) ? zip.file(file) : null
+      const url = data && BOOK_MIME[ext] ? await pictureDataUrl(await data.async('uint8array'), BOOK_MIME[ext]) : null
+      if (url) img.setAttribute('src', url)
+      else img.removeAttribute('src')
+    }
+  }
+
+  // Into an HTML document for the Markdown converter: XHTML elements become
+  // HTML ones, and empty elements are written out as such.
+  let chapters = 0
+  for (const { body } of chapterDocs) {
+    const htmlDoc = new DOMParser().parseFromString('<!doctype html><html><body></body></html>', 'text/html')
+    for (const child of Array.from(body.childNodes)) htmlDoc.body.appendChild(htmlDoc.importNode(child, true))
+    const markdown = htmlToMarkdown(htmlDoc.body.innerHTML, { keepDataImages: pictures }).trim()
     if (!markdown) continue
     parts.push(markdown)
     chapters++
