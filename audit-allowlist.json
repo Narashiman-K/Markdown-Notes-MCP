@@ -5,5 +5,12 @@
     "reason": "Only reached through @anthropic-ai/mcpb, the developer tool that packs the .mcpb bundle. Not a runtime dependency, and the bundle is not signed with it. No patched node-forge exists (all versions <=1.4.0).",
     "accepted": "2026-10-07",
     "reviewBy": "2026-12-31"
+  },
+  {
+    "id": "GHSA-mrhx-c7xc-m3w5",
+    "package": "zod",
+    "reason": "Only the zod 3 copy nested under @anthropic-ai/mcpb, the developer tool that packs the .mcpb bundle (a devDependency, not shipped). The server itself uses zod 4.6.7, which is patched. No mcpb release with a patched zod yet.",
+    "accepted": "2026-11-01",
+    "reviewBy": "2026-12-31"
   }
 ]
