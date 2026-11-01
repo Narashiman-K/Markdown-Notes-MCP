@@ -340,7 +340,16 @@ export async function convertEpub(bytes: Uint8Array, fileName: string, options: 
     const text = await entry.async('string')
     let dom = new DOMParser().parseFromString(text, 'application/xhtml+xml')
     if (dom.getElementsByTagName('parsererror').length) dom = new DOMParser().parseFromString(text, 'text/html')
-    const body = dom.getElementsByTagName('body')[0] ?? dom.documentElement
+    // Some DOMs (the one under Node, for the MCP package) do not find a
+    // namespaced <body> by tag name; look by local name, and failing that use
+    // the whole page without its <head>, so the chapter's <title> does not
+    // turn up as a stray line of text.
+    let body: Element | undefined =
+      dom.getElementsByTagName('body')[0] ?? Array.from(dom.getElementsByTagName('*')).find((e) => e.localName === 'body')
+    if (!body && dom.documentElement) {
+      body = dom.documentElement
+      for (const head of Array.from(body.getElementsByTagName('*')).filter((e) => e.localName === 'head')) head.remove()
+    }
     if (body) chapterDocs.push({ path, body })
   }
 

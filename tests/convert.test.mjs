@@ -77,3 +77,11 @@ test('the advertised format list is not empty and includes the obvious ones', ()
     assert.ok(ALL_FORMATS.includes(ext), `${ext} missing from ALL_FORMATS`)
   }
 })
+
+test('an EPUB chapter title in <head> does not leak into the text', async () => {
+  const r = await convert('sample-book.epub')
+  assert.equal(r.ok, true, r.ok ? '' : r.error)
+  // The chapter heading appears once, as a heading, not again as a stray line.
+  assert.equal(r.markdown.match(/^Chapter One$/gm), null, r.markdown.slice(0, 300))
+  assert.match(r.markdown, /\[Chapter One\]\(#epub-1\)/)
+})
