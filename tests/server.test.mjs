@@ -80,7 +80,9 @@ test('the folder restriction is enforced, and ignores an unsubstituted placehold
   const allowed = join(root, 'samples')
 
   const [refused] = (
-    await callServer([convert(2, { path: 'C:\\Windows\\win.ini', save: false })], {
+    // An absolute path outside the samples folder on whichever OS runs the
+    // tests: CI runs on Linux, where a C:\ path is not absolute at all.
+    await callServer([convert(2, { path: process.platform === 'win32' ? 'C:\\Windows\\win.ini' : '/etc/hosts', save: false })], {
       MARKDOWN_MCP_ROOTS: allowed
     })
   ).filter((r) => r.id === 2)
