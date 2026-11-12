@@ -23,7 +23,7 @@ import { titleFrom, tidy } from './normalise'
 import { openOfflineReader, unreadableWarning, UNREADABLE_CONFIDENCE, type OfflineReader } from './ocr'
 import { CloudCaller } from './cloudRetry'
 import { normaliseOcrLanguages } from './ocrLanguages'
-import { PAGE_BREAK, pageSizeLine } from './pageNotes'
+import { pageBreakLine, pageNumberLine, pageSizeLine } from './pageNotes'
 import { canvasBlob, describeTurns, findTurn, turnCanvas, UPRIGHT_CONFIDENCE, type Turn } from './orientation'
 
 /** Pixels across an A4 page at 300 dpi, the width pages are scaled towards. */
@@ -220,11 +220,12 @@ export async function ocrScannedPdf(
     const parts: string[] = [`# ${titleFrom(fileName)}`]
     if (pageSize) parts.push(pageSizeLine(pageSize.width, pageSize.height))
     texts.forEach((text, i) => {
-      if (i > 0) parts.push(PAGE_BREAK)
-      if (pages > 1) parts.push(`## Page ${i + 1}`)
+      if (i > 0) parts.push(pageBreakLine(i + 1))
       // The picture first: page view puts it on the left, the text beside it.
       if (kept[i]) parts.push(`![Original page ${i + 1}](${kept[i]} "suprasuta:scan")`)
       parts.push(text || '_No text could be read from this page._')
+      // The page's number at its foot, small and grey, like a footer.
+      if (pages > 1) parts.push(pageNumberLine(i + 1))
     })
 
     const confidence = confidences.length
